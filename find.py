@@ -76,16 +76,16 @@ class FastThreadSafeCache:
 
 def find_directories(path, max_depth=1, size_filter=None, name_filter=None, exclude_dirs=None):
     """
-    Поиск директорий с заданными параметрами.
-    
-    Аргументы:
+    Searching for directories with specified parameters.
+
+    Arguments:
     path -- root dir to start from
-    max_depth -- max deep to search
-    size_filter -- фильтр по размеру (например, '>2G')
-    name_filter -- фильтр по имени директории
-    exclude_dirs -- список директорий для исключения
-    
-    Возвращает список кортежей (размер, путь)
+    max_depth -- max depth to search
+    size_filter -- size filter (e.g., '>2G')
+    name_filter -- directory name filter
+    exclude_dirs -- list of directories to exclude
+
+    Returns a list of tuples (size, path)
     """
     
     if exclude_dirs is None:
@@ -96,7 +96,7 @@ def find_directories(path, max_depth=1, size_filter=None, name_filter=None, excl
     size_cache = FastThreadSafeCache() # Cache for storing directory sizes
     
     log_message(f"Поиск в: {path}, макс. глубина: {max_depth}")
-    log_message(f"Фильтры: размер = '{size_filter or ''}', имя = '{name_filter or ''}'")
+    log_message(f"Фильтры: {Colors.RED}размер = '{size_filter or ''}'{Colors.RESET}, {Colors.MAGENTA}имя = '{name_filter or ''}'{Colors.RESET}")
     log_message(f"Исключения: {exclude_dirs}\n")
     
     
@@ -164,23 +164,6 @@ def find_directories(path, max_depth=1, size_filter=None, name_filter=None, excl
         size_cache.update(current_path, total_size)
         return total_size
 
-
-    def build_directory_tree(results):
-        """Build the tree of directories from the Result"""
-        tree = defaultdict(dict)
-        for item in sorted(results, key=lambda x: x["path"]):
-            parts = item["path"].split(os.sep)
-            current = tree
-            has_leaf = len(parts) > 2
-            for part in parts[1:]:  # Пропускаем пустой первый элемент для абсолютных путей
-                if part not in current:
-                    current[part] = defaultdict(dict)
-                current = current[part]
-                current["__leaf__"] = has_leaf and part == parts[-1]
-            
-            current["__size__"] = item["size"]
-            current["__raw_size__"] = item["raw_size"]
-        return tree
 
     def traverse_directories(start_path):
         """Base function for traverse directories"""
@@ -365,28 +348,47 @@ def pad_with_spaces(text, target_length, align='left'):
     Возвращает:
         str: строка, дополненная пробелами
     """
-    if len(text) >= target_length:
-        return text
-    
+    result = ''
     spaces_needed = target_length - len(text)
     
-    if align == 'left':
-        return text + ' ' * spaces_needed
+    if len(text) >= target_length:
+        result = text
+    
+    elif align == 'left':
+        result = text + ' ' * spaces_needed
     elif align == 'right':
-        return ' ' * spaces_needed + text
+        result = ' ' * spaces_needed + text
     elif align == 'center':
         left_spaces = spaces_needed // 2
         right_spaces = spaces_needed - left_spaces
-        return ' ' * left_spaces + text + ' ' * right_spaces
+        result = ' ' * left_spaces + text + ' ' * right_spaces
     else:
         raise ValueError("Недопустимое значение align. Допустимо: 'left', 'right', 'center'")
+    
+    return result
+
+def build_directory_tree(results):
+    """Build the tree of directories from the Result"""
+    tree = defaultdict(dict)
+    for item in sorted(results, key=lambda x: x["path"]):
+        parts = item["path"].split(os.sep)
+        current = tree
+        has_leaf = len(parts) > 1
+        for part in parts[1:]:  # Пропускаем пустой первый элемент для абсолютных путей
+            if part not in current:
+                current[part] = defaultdict(dict)
+            current = current[part]
+            current["__leaf__"] = has_leaf and part == parts[-1]
+        
+        current["__size__"] = item["size"]
+        current["__raw_size__"] = item["raw_size"]
+    return tree
 
 def print_directory_tree(tree, prefix=""):
     """Рекурсивно печатает дерево директорий"""
     if not tree:
         return
     
-    log_message(f"\t\t\tTree.items: {tree.items()} {len(tree.items())}", False)
     items = sorted(
         [(k, v) for k, v in tree.items() if not k.startswith("__")],
         key=lambda x: x[1].get("__raw_size__", 0),
@@ -395,6 +397,7 @@ def print_directory_tree(tree, prefix=""):
     
     for i, (name, subtree) in enumerate(items):
         is_last = i == len(items) - 1
+        is_leaf = subtree.get("__leaf__")
         size = subtree.get("__size__", "")
         if size:
             size = f"({size})"
@@ -402,11 +405,14 @@ def print_directory_tree(tree, prefix=""):
         
         if filterByName(name):
             name = f"{Colors.RED}{name}{Colors.RESET}"
-        if subtree.get("__leaf__") and size_filter and filterBySize(subtree.get("__raw_size__", 0)):
+        if is_leaf and size_filter and filterBySize(subtree.get("__raw_size__", 0)):
             size = f"{Colors.MAGENTA}{size}{Colors.RESET}"
 
         if prefix == "":
             log_message(f"/{name} {size}")
+            if is_leaf and subtree and not is_last :
+                log_message(f"|")
+
         else:
             log_message(f"{prefix}{'└── ' if is_last else '├── '}{name} {size}")
         

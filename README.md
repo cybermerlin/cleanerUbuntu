@@ -17,7 +17,7 @@
   - **size_filter** -- size filter (e.g., '>2G')
   - **name_filter** -- directory name filter
   - **exclude_dirs** -- list of directories to exclude
-- [freeupsnap](freeupsnap.sh) - function to clean up Snapd storage.
+- [freeup](freeup.sh) - function to clean up Snapd storage.
   + show menu to select which case would you like to run
     
     ![alt text](image-1.png)
